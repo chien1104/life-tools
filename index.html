@@ -3839,7 +3839,7 @@ Backup.merge=function(d){ const n=_bMerge2.call(Backup,d);
 
 /* 繪製後處理：縮圖、裝飾 */
 const _render0=render;
-const COPY_FOOT=`<div class="copyfoot">© ${new Date().getFullYear()} <b>🌻生活工具檯</b>　by <b>@chien1104</b><br>本工具僅供購買者／受贈者個人使用，<br>禁止複製、轉售、出租或公開散佈原始檔案與連結。</div>`;
+const COPY_FOOT=`<div class="copyfoot"><b>@Chien1104</b></div>`;
 render=function(){ _render0(); (()=>{ const host=$("app").querySelector(".starwrap")||$("app"); host.insertAdjacentHTML("beforeend", COPY_FOOT); })(); if(LS._mem) $("app").insertAdjacentHTML("afterbegin",`<div class="lockbar" role="alert"><span>⚠️ 這個瀏覽器不允許儲存資料，關掉頁面後內容會消失。請改用 Safari 或 Chrome 一般模式開啟，並確認沒有封鎖網站資料。</span></div>`); if(Store.locked) $("app").insertAdjacentHTML("afterbegin", lockBanner()); if((tab==="growth"&&(hub==="kb"||hub==="wish"))||tab==="card") fillThumbs(); };
 $("btnSearch").onclick=()=>Sheet.search();
 /* ================= 12. 啟動 ================= */
