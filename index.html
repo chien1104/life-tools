@@ -572,6 +572,15 @@ button.scard:active{transform:scale(.98)} button.scard:hover{background:rgba(255
 .jdots span.on.xiao,.jdots span.on.yin{border-style:solid;border-color:#c9bfd8;color:#c9bfd8}
 @media (prefers-reduced-motion:reduce){.jpair.spin .jblock{animation:none}}
 
+/* 內容創作企劃板 */
+.cplan{display:flex;flex-direction:column;gap:10px}
+.cplan .cmain{display:flex;flex-direction:column;gap:4px;min-width:0;text-align:left;white-space:normal}
+.cplan .cmain b{font-size:16px;overflow-wrap:anywhere}
+.cst{font-size:12px;color:var(--caramel);font-weight:600}
+.cmeta{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px;color:var(--coffee-soft)}
+.cmeta .late{color:var(--rose-ink)}
+.cplan>.btn{align-self:flex-start}
+
 .phone{padding-bottom:calc(150px + env(safe-area-inset-bottom))}
 .copyfoot{margin:22px 18px 0;padding:14px 4px 0;border-top:1px dashed var(--line);text-align:center;font-size:11.5px;line-height:1.75;color:var(--coffee-soft)}
 .copyfoot b{color:var(--coffee);font-weight:600}
@@ -721,7 +730,7 @@ const D = {
 /* ================= 4. 資料層 ================= */
 const KEY = "lifebox_v1";             // 不更改，舊資料持續可用
 const BK_KEY = "lifebox_v1_backups";  // 本機自動備份（最多 8 份）
-const SCHEMA = 6;
+const SCHEMA = 7;
 const IS_STANDALONE=(()=>{ try{ return navigator.standalone===true || matchMedia("(display-mode: standalone)").matches; }catch(e){ return false; } })();
 const Store = {
   load(){
@@ -785,6 +794,10 @@ const Store = {
     (d.todos||[]).forEach(t=>{ if(OLD_WORK_CATS.includes(t.category)) t.category="工作與事業"; if(OLD_WORK_CATS.includes(t.cat)) t.cat="工作與事業"; });
     (d.results||[]).forEach(r=>{ if(OLD_WORK_CATS.includes(r.cat)) r.cat="工作與事業"; });
     if((d.schemaVersion||1) < 6) d.schemaVersion=6;
+    // 版本 7：新增內容創作企劃板 content（個人資料庫 personalProfile 保留不動）
+    if(!Array.isArray(d.content)) d.content=[];
+    d.content.forEach(c=>contentNormalize(c));
+    if((d.schemaVersion||1) < 7) d.schemaVersion=7;
     let maxOrder=d.todos.reduce((m,t)=>Math.max(m, Number.isFinite(t.sortOrder)?t.sortOrder:0),0);
     d.todos.forEach(t=>{ Tasks.normalize(t,T); if(!Number.isFinite(t.sortOrder)) t.sortOrder=++maxOrder; });
     return d;
@@ -1396,6 +1409,7 @@ const Backup = {
     d.moodRecords.forEach(r=>{ if(!S.moodRecords.some(x=>x.date===r.date)) S.moodRecords.push(r); });
     d.reviews.forEach(r=>{ if(!S.reviews.some(x=>x.date===r.date)) S.reviews.push(r); });
     d.personalProfile.entries.forEach(x=>{ if(!has(S.personalProfile.entries,x.id)) S.personalProfile.entries.push(x); });
+    (d.content||[]).forEach(x=>{ if(x && x.id && !has(S.content,x.id)) S.content.push(x); });
     return added;
   }
 };
@@ -1686,7 +1700,7 @@ let hub=null, gMood="平穩", gEnergy=3, jType="日記", jQuery="", wishType="�
 sub.goal = sub.goal || "year";
 
 function viewGrowth(){
-  if(hub) return `<button class="back" data-ghub="">${ic("back")}返回今日</button>` + ({habit:vHabit,mood:vMood,review:vReview,goal:vGoal,wish:vWish,profile:vProfile,fin:vFin,kb:vKb,report:vReport,reward:vReward}[hub])();
+  if(hub) return `<button class="back" data-ghub="">${ic("back")}返回今日</button>` + ({habit:vHabit,mood:vMood,review:vReview,goal:vGoal,wish:vWish,profile:vProfile,content:vContent,fin:vFin,kb:vKb,report:vReport,reward:vReward}[hub])();
   const T=D.today(), hs=Habits.active(), hd=hs.filter(h=>Habits.isDone(h.id,T)).length;
   const mr=Mood.get(T), rv=Review.get(T);
   const ga=S.goals.filter(g=>g.status==="active");
@@ -1704,7 +1718,7 @@ function viewGrowth(){
     <div class="card menu">
       ${row("target","目標","年度、季度、月度目標與里程碑","goal", ga.length?`進行中 ${ga.length}・${avg}%`:"")}
       ${row("gift","願望清單","想買、想去、想吃、想體驗、想學","wish", S.wishlist.length?`${wd}/${S.wishlist.length} 完成`:"")}
-      ${row("user","個人資料庫","偏好、生活習慣、興趣與喜好","profile", S.personalProfile.entries.length?`${S.personalProfile.entries.length} 筆`:"")}
+      ${row("cam","內容創作企劃板","靈感、腳本、拍攝、剪輯、發布、成效","content", S.content.filter(c=>c.stage!=="posted").length?`${S.content.filter(c=>c.stage!=="posted").length} 個進行中`:"")}
     </div>
     <div class="sec">生活管理</div>
     <div class="card menu">
@@ -2461,7 +2475,7 @@ function searchAll(q, parsed){
   S.fin.tx.forEach(t=>push("fin",t.id,`${t.type==="income"?"收入":t.type==="expense"?"支出":"轉帳"} ${money(t.amount)}`,[t.cat,t.note].join(" "),t.date,{hub:"fin"}));
   S.habits.forEach(h=>push("habit",h.id,h.title,h.target,h.createdDate,{hub:"habit"}));
   S.reviews.forEach(r=>push("review",r.id,"每日回顧",[r.happy,r.thanks,r.tomorrow,r.note].join(" "),r.date,{hub:"review"}));
-  S.personalProfile.entries.forEach(e=>push("profile",e.id,e.key,e.value+" "+e.group,D.fromTs(e.createdAt),{hub:"profile"}));
+  S.content.forEach(c=>push("content",c.id,c.title,[c.platform,c.hook,c.script,c.caption,c.hashtags,c.notes].join(" "),D.fromTs(c.createdAt),{hub:"content"}));
   const score=it=>{ if(mod && it.m!==mod) return -1; if(range && !(it.date>=range.start&&it.date<=range.end)) return -1;
     if(!words.length) return (range||mod)?1:-1;
     const hay=(it.title+" "+it.text).toLowerCase(); return words.filter(w=>hay.includes(w)).length; };
@@ -2470,7 +2484,7 @@ function searchAll(q, parsed){
   res = full.length ? full : res;   // 全部關鍵字都符合的優先；沒有時才顯示部分符合
   return {res:res.sort((a,b)=>b.s-a.s||String(b.it.date).localeCompare(String(a.it.date))).map(x=>x.it).slice(0,60), range, mod, words, partial:!full.length&&res.length>0};
 }
-const MODNAME={task:"待辦",journal:"心情與日記",kb:"第二大腦",wish:"願望清單",goal:"目標",fin:"財務",habit:"習慣",review:"每日回顧",profile:"個人資料"};
+const MODNAME={task:"待辦",journal:"心情與日記",kb:"第二大腦",wish:"願望清單",goal:"目標",fin:"財務",habit:"習慣",review:"每日回顧",profile:"個人資料",content:"內容企劃"};
 function renderSearch(q, parsed, byAI){
   const box=$("searchRes"); if(!box) return;
   if(!q.trim()){ box.innerHTML=`<p class="muted" style="margin:6px 2px">可以用關鍵字，也可以加上時間或類別，例如「上個月 韓國 餐廳」「本週 待辦」「11月 支出」。</p>`; return; }
@@ -2741,8 +2755,8 @@ app.addEventListener("click", e=>{ if(e.target.closest("[data-opensettings]")) S
 
 /* ---------- Emoji 系統（全站） ---------- */
 const CAT_E={"工作與事業":"💼","內容創作":"📸","財務":"💳","學習":"📚","生活":"🌿","購物":"🛍️","朋友":"👯","家人":"🏡"};
-const HUB_E={habit:"🔁",mood:"💭",review:"🌙",goal:"🚩",wish:"🎁",profile:"👤",fin:"💳",kb:"🧠",report:"📊",reward:"🏅"};
-const HERO_E=Object.assign({"今日":"☀️","收集":"📝","待辦":"✅","今日建議":"🗓️","成長":"🌱","習慣打卡":"🔁","心情與日記":"💭","每日回顧":"🌙","目標":"🚩","願望清單":"🎁","個人資料庫":"👤","財務":"💳","第二大腦":"🧠","週報與月報":"📊","成長獎勵":"🏅"}, CAT_E);
+const HUB_E={habit:"🔁",mood:"💭",review:"🌙",goal:"🚩",wish:"🎁",profile:"👤",content:"📸",fin:"💳",kb:"🧠",report:"📊",reward:"🏅"};
+const HERO_E=Object.assign({"今日":"☀️","收集":"📝","待辦":"✅","今日建議":"🗓️","成長":"🌱","習慣打卡":"🔁","心情與日記":"💭","每日回顧":"🌙","目標":"🚩","願望清單":"🎁","個人資料庫":"👤","內容創作企劃板":"📸","財務":"💳","第二大腦":"🧠","週報與月報":"📊","成長獎勵":"🏅"}, CAT_E);
 
 /* ---------- 刪除後可復原 ---------- */
 let _undoFn=null;
@@ -3851,6 +3865,105 @@ Backup.merge=function(d){ const n=_bMerge2.call(Backup,d);
     if(k==="gratitude" && st.gratitude.some(y=>y.date===x.date)) return;
     st[k].push(x); }));
   return n; };
+
+
+/* ---------- 📸 內容創作企劃板（取代個人資料庫；個人資料庫的舊資料保留在 S.personalProfile，不顯示） ---------- */
+const CSTAGES=[["idea","💡","靈感"],["script","📝","腳本"],["shoot","🎬","拍攝"],["edit","✂️","剪輯"],["ready","📅","待發布"],["posted","🚀","已發布"]];
+const CPLATS=["IG 貼文","Reels","限時動態","YouTube","TikTok","Threads","其他"];
+const CMETRICS=[["views","觀看"],["likes","愛心"],["comments","留言"],["saves","收藏"],["shares","分享"],["follows","新追蹤"]];
+const cStage=k=>CSTAGES.find(s=>s[0]===k)||CSTAGES[0];
+let cFilter="all";
+function contentNormalize(c){
+  if(!c.id) c.id=uid(); if(!c.stage) c.stage="idea"; if(!c.platform) c.platform="Reels";
+  ["title","hook","script","caption","hashtags","notes"].forEach(k=>{ if(typeof c[k]!=="string") c[k]=""; });
+  if(!Array.isArray(c.shots)) c.shots=[]; if(!c.metrics||typeof c.metrics!=="object") c.metrics={};
+  if(c.date===undefined) c.date=null; if(c.postedDate===undefined) c.postedDate=null; if(c.taskId===undefined) c.taskId=null;
+  if(!c.createdAt) c.createdAt=Date.now(); if(!c.updatedAt) c.updatedAt=c.createdAt; return c;
+}
+function vContent(){
+  const T=D.today(), all=S.content, m=T.slice(0,7);
+  const cnt=k=>all.filter(c=>k==="all"||c.stage===k).length;
+  const list=all.filter(c=>cFilter==="all"||c.stage===cFilter).sort((a,b)=>
+    ((a.stage==="posted")-(b.stage==="posted")) || ((a.date||"9999")).localeCompare(b.date||"9999") || b.updatedAt-a.updatedAt);
+  const postedM=all.filter(c=>c.stage==="posted"&&(c.postedDate||"").slice(0,7)===m);
+  const views=postedM.reduce((s,c)=>s+(+c.metrics.views||0),0);
+  const card=c=>{ const st=cStage(c.stage), sd=c.shots.filter(x=>x.done).length, late=c.stage!=="posted"&&c.date&&c.date<T;
+    const nx=CSTAGES[CSTAGES.findIndex(s=>s[0]===c.stage)+1];
+    return `<div class="card cplan">
+      <button class="txt cmain" data-cedit="${c.id}"><span class="cst">${st[1]} ${st[2]}</span><b>${esc(c.title)||"（未命名企劃）"}</b>
+        <span class="cmeta"><span>${esc(c.platform)}</span>${c.stage==="posted"?(c.postedDate?`<span>發布 ${D.short(c.postedDate)}</span>`:""):c.date?`<span class="${late?"late":""}">預計 ${D.short(c.date)}${late?"・已過期":""}</span>`:""}${c.shots.length?`<span>拍攝清單 ${sd}/${c.shots.length}</span>`:""}${c.stage==="posted"&&c.metrics.views?`<span>👀 ${num(c.metrics.views)}</span>`:""}</span></button>
+      ${nx?`<button class="btn small ghost" data-cnext="${c.id}">下一步：${nx[1]} ${nx[2]}</button>`:""}
+    </div>`; };
+  return hero("把每一個想法，一步一步做成作品。","內容創作企劃板") + `<div class="body">
+    <div class="card"><div class="stats" style="margin:0">
+      <div class="stat"><b>${all.filter(c=>c.stage!=="posted").length}</b><span>進行中</span></div>
+      <div class="stat"><b>${postedM.length}</b><span>本月發布</span></div>
+      <div class="stat"><b>${num(views)}</b><span>本月觀看</span></div>
+    </div></div>
+    <div class="chiprow">${[["all","📋","全部"],...CSTAGES].map(s=>`<button class="chip ${cFilter===s[0]?"on":""}" data-cf="${s[0]}">${s[1]} ${s[2]} <b>${cnt(s[0])}</b></button>`).join("")}</div>
+    <button class="btn full" data-cnew="1" style="margin-bottom:14px">${ic("plus")}新增企劃</button>
+    ${list.length?list.map(card).join(""):`<div class="card"><div class="empty">${cFilter==="all"?"還沒有企劃。想到點子就先記下來吧！":"這個階段目前沒有企劃。"}</div></div>`}
+  </div>`;
+}
+function cShotsHtml(){ const c=Sheet._c; return c.shots.length?c.shots.map(x=>`<div class="item" style="padding:8px 10px"><input type="checkbox" data-cshot="${x.id}" ${x.done?"checked":""} aria-label="完成"><span class="txt" style="min-width:0">${esc(x.text)}</span><button class="del" data-cshotdel="${x.id}" aria-label="移除">${ic("x")}</button></div>`).join(""):`<p class="muted" style="margin:4px 0">還沒有拍攝清單。</p>`; }
+function readContentForm(){ const v=id=>($(id)?.value||"").trim();
+  const f={title:v("cTitle"),platform:v("cPlat"),stage:v("cStage"),date:v("cDate")||null,hook:v("cHook"),script:v("cScript"),caption:v("cCaption"),hashtags:v("cTags"),notes:v("cNotes")};
+  if($("cPosted")) f.postedDate=v("cPosted")||null;
+  const mt={}; CMETRICS.forEach(([k])=>{ const x=$("cm_"+k); if(x&&x.value!=="") mt[k]=Math.max(0,Math.round(+x.value||0)); }); if($("cm_views")) f.metrics=mt;
+  return f; }
+Sheet.contentEdit=function(id){
+  const src=id&&S.content.find(x=>x.id===id);
+  Sheet._cid=id||null; Sheet._c=contentNormalize(JSON.parse(JSON.stringify(src||{stage:cFilter!=="all"?cFilter:"idea"})));
+  const c=Sheet._c, posted=c.stage==="posted", t=c.taskId&&Tasks.get(c.taskId);
+  Sheet.open(`<h3>${src?"編輯企劃":"新增企劃"}</h3>
+    <label class="fld"><span>主題／標題</span><input id="cTitle" value="${esc(c.title)}" placeholder="例如：杜拜 3 天 2 夜開箱"></label>
+    <div class="grid2" style="margin-top:10px"><label class="fld"><span>平台</span><select id="cPlat">${CPLATS.map(p=>`<option ${p===c.platform?"selected":""}>${p}</option>`).join("")}</select></label>
+      <label class="fld"><span>階段</span><select id="cStage">${CSTAGES.map(s=>`<option value="${s[0]}" ${s[0]===c.stage?"selected":""}>${s[1]} ${s[2]}</option>`).join("")}</select></label></div>
+    <label class="fld" style="margin-top:10px"><span>預計發布日</span><input type="date" id="cDate" value="${c.date||""}"></label>
+    <label class="fld" style="margin-top:10px"><span>開頭鉤子（前 3 秒）</span><input id="cHook" value="${esc(c.hook)}" placeholder="例如：住過最貴的飯店，到底值不值得？"></label>
+    <label class="fld" style="margin-top:10px"><span>腳本／重點</span><textarea id="cScript" rows="4" placeholder="分段寫下要講的內容">${esc(c.script)}</textarea></label>
+    <div class="fld" style="margin-top:10px"><span>拍攝清單</span><div id="cShots">${cShotsHtml()}</div>
+      <div class="hrow" style="margin-top:6px;flex-wrap:nowrap"><input id="cShotNew" placeholder="例如：飯店大廳空景"><button class="btn small ghost" data-cshotadd="1">加入</button></div></div>
+    <label class="fld" style="margin-top:10px"><span>文案</span><textarea id="cCaption" rows="3">${esc(c.caption)}</textarea></label>
+    <label class="fld" style="margin-top:10px"><span>Hashtag</span><input id="cTags" value="${esc(c.hashtags)}" placeholder="#杜拜 #旅行"></label>
+    ${posted?`<div class="sec" style="margin:16px 0 6px">🚀 發布後成效</div>
+      <label class="fld"><span>發布日</span><input type="date" id="cPosted" value="${c.postedDate||""}"></label>
+      <div class="grid2" style="margin-top:10px">${CMETRICS.map(([k,l])=>`<label class="fld"><span>${l}</span><input type="number" inputmode="numeric" min="0" id="cm_${k}" value="${c.metrics[k]??""}"></label>`).join("")}</div>`:""}
+    <label class="fld" style="margin-top:10px"><span>備註</span><textarea id="cNotes" rows="2">${esc(c.notes)}</textarea></label>
+    <div class="hrow" style="margin-top:16px"><button class="btn" data-csave="1" style="flex:1">儲存</button><button class="btn ghost" data-act="close">取消</button></div>
+    ${src?`<div class="grid2" style="margin-top:10px">${t?`<button class="btn ghost" disabled>已轉成待辦</button>`:`<button class="btn ghost" data-ctask="1">轉成待辦</button>`}<button class="btn ghost" data-cdel="1" style="color:var(--rose-ink)">刪除</button></div>`:""}`);
+};
+function contentSave(f, keepOpen){
+  let c=Sheet._cid&&S.content.find(x=>x.id===Sheet._cid);
+  const merged=Object.assign({},Sheet._c,f,{shots:Sheet._c.shots,updatedAt:Date.now()});
+  if(merged.stage==="posted"&&!merged.postedDate) merged.postedDate=D.today();
+  if(c) Object.assign(c,merged); else { c=contentNormalize(merged); S.content.push(c); Sheet._cid=c.id; }
+  save(); return c;
+}
+document.addEventListener("click", e=>{
+  const t=e.target;
+  const cf=t.closest("[data-cf]"); if(cf){ cFilter=cf.dataset.cf; render(); return; }
+  if(t.closest("[data-cnew]")){ Sheet.contentEdit(null); return; }
+  const ce=t.closest("[data-cedit]"); if(ce){ Sheet.contentEdit(ce.dataset.cedit); return; }
+  const cn=t.closest("[data-cnext]"); if(cn){ const c=S.content.find(x=>x.id===cn.dataset.cnext); if(!c) return;
+    const i=CSTAGES.findIndex(s=>s[0]===c.stage), nx=CSTAGES[i+1]; if(!nx) return;
+    c.stage=nx[0]; c.updatedAt=Date.now(); if(nx[0]==="posted"&&!c.postedDate) c.postedDate=D.today(); save(); render(); toast(`已移到「${nx[2]}」`); return; }
+  if(t.closest("[data-cshotadd]")){ const v=($("cShotNew").value||"").trim(); if(!v) return; Sheet._c.shots.push({id:uid(),text:v,done:false}); $("cShotNew").value=""; $("cShots").innerHTML=cShotsHtml(); $("cShotNew").focus(); return; }
+  const sd=t.closest("[data-cshotdel]"); if(sd){ Sheet._c.shots=Sheet._c.shots.filter(x=>x.id!==sd.dataset.cshotdel); $("cShots").innerHTML=cShotsHtml(); return; }
+  const sc=t.closest("[data-cshot]"); if(sc){ const x=Sheet._c.shots.find(y=>y.id===sc.dataset.cshot); if(x) x.done=sc.checked; return; }
+  if(t.closest("[data-csave]")){ const f=readContentForm(); if(!f.title){ toast("請寫下主題"); $("cTitle").focus(); return; }
+    const wasPosted=Sheet._cid&&(S.content.find(x=>x.id===Sheet._cid)||{}).stage==="posted";
+    const c=contentSave(f); Sheet.close(); render(); toast(c.stage==="posted"&&!wasPosted?"🚀 已發布！記得回來填成效":"已儲存"); return; }
+  if(t.closest("[data-ctask]")){ const f=readContentForm(); if(!f.title){ toast("請寫下主題"); return; }
+    const c=contentSave(f), id=c.id;
+    Sheet.ask("轉成待辦？",`會在${c.date&&c.date>D.today()?` ${D.short(c.date)} `:"今天的"}待辦新增「${esc(c.title)}」（內容創作），並和這個企劃保持連結。`,[
+      {label:"建立待辦",fn:()=>{ const tk=Tasks.create({title:c.title,category:"內容創作",priority:"中",scheduledDate:c.date||D.today(),description:c.hook||""}); c.taskId=tk.id; save(); render(); Sheet.contentEdit(id); toast("已建立待辦"); }},
+      {label:"取消",ghost:true,fn:()=>Sheet.contentEdit(id)}]); return; }
+  if(t.closest("[data-cdel]")){ const id=Sheet._cid, c=S.content.find(x=>x.id===id); if(!c) return;
+    Sheet.ask("刪除這個企劃？",`「${esc(c.title)}」會被刪除，無法復原（除非從備份還原）。已轉成的待辦不會一起刪除。`,[
+      {label:"刪除",fn:()=>{ S.content=S.content.filter(x=>x.id!==id); save(); render(); toast("已刪除"); }},
+      {label:"取消",ghost:true,fn:()=>Sheet.contentEdit(id)}]); return; }
+});
 
 /* 繪製後處理：縮圖、裝飾 */
 const _render0=render;
