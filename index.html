@@ -580,6 +580,7 @@ button.scard:active{transform:scale(.98)} button.scard:hover{background:rgba(255
 .cmeta{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px;color:var(--coffee-soft)}
 .cmeta .late{color:var(--rose-ink)}
 .cplan>.btn{align-self:flex-start}
+html,body{overscroll-behavior-x:none}
 
 .phone{padding-bottom:calc(150px + env(safe-area-inset-bottom))}
 .copyfoot{margin:22px 18px 0;padding:14px 4px 0;border-top:1px dashed var(--line);text-align:center;font-size:11.5px;line-height:1.75;color:var(--coffee-soft)}
@@ -3989,15 +3990,14 @@ render();
 booted=true;
 if(Store.locked) Sheet.lock();
 maybeWelcome();
-/* 從主畫面打開時：從左邊緣往右滑＝App 裡的「返回」，不會滑出 App */
 function inAppBack(){
   if($("sheet").classList.contains("show")){ Sheet.close(); return; }
   if(tab==="card" && starPage){ goStar(null); return; }
   if(hub){ go("home"); return; }
   if(tab!=="home") go("home");
 }
-if(IS_STANDALONE){ try{ history.replaceState({lifeos:0},""); history.pushState({lifeos:1},"");
-  window.addEventListener("popstate", ()=>{ inAppBack(); history.pushState({lifeos:1},""); }); }catch(e){} }
+/* 不再建立瀏覽紀錄：iPhone 從左邊緣滑動時沒有「上一頁」，畫面就不會出現空白頁。
+   （匯出備份改用分享選單，不會再留下檔案頁面的紀錄） */
 /* 離線使用：只在一般網址（https）註冊，Claude 預覽或本機檔案不註冊 */
 try{ if("serviceWorker" in navigator && location.protocol==="https:" && window.top===window.self) navigator.serviceWorker.register("sw.js").catch(()=>{}); }catch(e){}
 
